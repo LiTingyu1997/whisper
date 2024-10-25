@@ -27,8 +27,6 @@ _MODELS = {
     "large-v2": "https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt",
     "large-v3": "https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt",
     "large": "https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt",
-    "large-v3-turbo": "https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt",
-    "turbo": "https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt",
 }
 
 # base85-encoded (n_layers, n_heads) boolean arrays indicating the cross-attention heads that are
@@ -46,8 +44,6 @@ _ALIGNMENT_HEADS = {
     "large-v2": b"ABzY8zd+h!0{>%R7=D0pU<_bnWW*tkYAhobTNnu$jnkEkXqp)j;w1Tzk)UH3X%SZd&fFZ2fC2yj",
     "large-v3": b"ABzY8gWO1E0{>%R7(9S+Kn!D~%ngiGaR?*L!iJG9p-nab0JQ=-{D1-g00",
     "large": b"ABzY8gWO1E0{>%R7(9S+Kn!D~%ngiGaR?*L!iJG9p-nab0JQ=-{D1-g00",
-    "large-v3-turbo": b"ABzY8j^C+e0{>%RARaKHP%t(lGR*)0g!tONPyhe`",
-    "turbo": b"ABzY8j^C+e0{>%RARaKHP%t(lGR*)0g!tONPyhe`",
 }
 
 
@@ -150,7 +146,51 @@ def load_model(
         checkpoint = torch.load(fp, map_location=device)
     del checkpoint_file
 
+    # import yaml
+    # with open("whisper_large.yaml", 'w') as file:
+    #     yaml.dump(checkpoint["dims"], file)
+    see = checkpoint["dims"]
     dims = ModelDimensions(**checkpoint["dims"])
+
+    import mindspore
+    from mindspore import Tensor
+    ckpt_pre = checkpoint["model_state_dict"]
+    param_dict = []
+    for k in ckpt_pre.keys():
+        # if ckpt_pre[k].dtype == torch.float16:
+        #     ms_type = mindspore.float16
+        # else:
+        ms_type = mindspore.float32
+        if "conv" in k and "weight" in k:
+            value = ckpt_pre[k].unsqueeze(-2)
+        else:
+            value = ckpt_pre[k]
+
+        if "attn_ln" in k and "weight" in k:
+            k = k.split("weight")[0]+"gamma"
+        if "attn_ln" in k and "bias" in k:
+            k = k.split("bias")[0] + "beta"
+
+        if "mlp_ln" in k and "weight" in k:
+            k = k.split("weight")[0] + "gamma"
+        if "mlp_ln" in k and "bias" in k:
+            k = k.split("bias")[0] + "beta"
+
+        if "encoder.ln_post" in k and "weight" in k:
+            k = k.split("weight")[0] + "gamma"
+        if "encoder.ln_post" in k and "bias" in k:
+            k = k.split("bias")[0] + "beta"
+
+        if "decoder.ln" in k and "weight" in k:
+            k = k.split("weight")[0] + "gamma"
+        if "decoder.ln" in k and "bias" in k:
+            k = k.split("bias")[0] + "beta"
+        param_np = value.numpy()
+        param_ms = Tensor(param_np, dtype=ms_type)
+        param_dict.append({"name": k, "data": param_ms})
+    mindspore.save_checkpoint(param_dict, '/home/litingyu/11coding/whisper_mind/large3.ckpt')
+
+
     model = Whisper(dims)
     model.load_state_dict(checkpoint["model_state_dict"])
 
@@ -158,3 +198,63 @@ def load_model(
         model.set_alignment_heads(alignment_heads)
 
     return model.to(device)
+
+# def load_model(
+#     name: str,
+#     device: Optional[Union[str]] = None,
+#     download_root: str = None,
+#     in_memory: bool = False,
+# ) -> Whisper:
+#     """
+#     Load a Whisper ASR model
+#
+#     Parameters
+#     ----------
+#     name : str
+#         one of the official model names listed by `whisper.available_models()`, or
+#         path to a model checkpoint containing the model dimensions and the model state_dict.
+#     device : Union[str]
+#         the mindspore device to put the model into
+#     download_root: str
+#         path to download the model files; by default, it uses "~/.cache/whisper"
+#     in_memory: bool
+#         whether to preload the model weights into host memory
+#
+#     Returns
+#     -------
+#     model : Whisper
+#         The Whisper ASR model instance
+#     """
+#
+#
+#     import yaml
+#     with open("whisper_large.yaml") as file:
+#         cfg_dict = yaml.load(file, Loader=yaml.FullLoader)
+#
+#     dims = ModelDimensions(**cfg_dict)
+#
+#     # import mindspore
+#     # from mindspore import Tensor
+#     # ckpt_pre = checkpoint["model_state_dict"]
+#     # param_dict = []
+#     # for k in ckpt_pre.keys():
+#     #     if ckpt_pre[k].dtype == torch.float16:
+#     #         ms_type = mindspore.float16
+#     #     else:
+#     #         ms_type = mindspore.float32
+#     #     param_np = ckpt_pre[k].numpy()
+#     #     param_ms = Tensor(param_np, dtype=ms_type)
+#     #     param_dict.append({"name": k, "data": param_ms})
+#     # mindspore.save_checkpoint(param_dict, '/home/litingyu/11coding/whisper_mind/large.ckpt')
+#
+#     model = Whisper(dims)
+#
+#     param_dict = mindspore.load_checkpoint('large.ckpt')
+#     mindspore.load_param_into_net(model, param_dict)
+#
+#     #model.load_state_dict(checkpoint["model_state_dict"])
+#
+#     # if alignment_heads is not None:
+#     #     model.set_alignment_heads(alignment_heads)
+#
+#     return model

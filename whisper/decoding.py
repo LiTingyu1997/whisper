@@ -2,10 +2,12 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import torch
-import torch.nn.functional as F
-from torch import Tensor
-from torch.distributions import Categorical
+# import torch
+# import torch.nn.functional as F
+# from torch import Tensor
+# from torch.distributions import Categorical
+import mindspore
+from mindspore import Tensor
 
 from .audio import CHUNK_LENGTH
 from .tokenizer import Tokenizer, get_tokenizer
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     from .model import Whisper
 
 
-@torch.no_grad()
+
 def detect_language(
     model: "Whisper", mel: Tensor, tokenizer: Tokenizer = None
 ) -> Tuple[Tensor, List[dict]]:
@@ -53,7 +55,7 @@ def detect_language(
 
     # forward pass using a single token, startoftranscript
     n_audio = mel.shape[0]
-    x = torch.tensor([[tokenizer.sot]] * n_audio).to(mel.device)  # [n_audio, 1]
+    x = Tensor([[tokenizer.sot]] * n_audio).to(mel.device)  # [n_audio, 1]
     logits = model.logits(x, mel)[:, 0]
 
     # collect detected languages; suppress all non-language tokens
@@ -361,7 +363,7 @@ class BeamSearchDecoder(TokenDecoder):
 
             finished_sequences.append(finished)
 
-        tokens = torch.tensor(next_tokens, device=tokens.device)
+        tokens = Tensor(next_tokens, device=tokens.device)
         self.inference.rearrange_kv_cache(source_indices)
 
         # add newly finished sequences to self.finished_sequences
@@ -395,7 +397,7 @@ class BeamSearchDecoder(TokenDecoder):
                         break
 
         tokens: List[List[Tensor]] = [
-            [torch.tensor(seq) for seq in sequences.keys()]
+            [Tensor(seq) for seq in sequences.keys()]
             for sequences in self.finished_sequences
         ]
         sum_logprobs: List[List[float]] = [
@@ -709,14 +711,14 @@ class DecodingTask:
 
         return tokens, sum_logprobs, no_speech_probs
 
-    @torch.no_grad()
+
     def run(self, mel: Tensor) -> List[DecodingResult]:
         self.decoder.reset()
         tokenizer: Tokenizer = self.tokenizer
         n_audio: int = mel.shape[0]
 
         audio_features: Tensor = self._get_audio_features(mel)  # encoder forward pass
-        tokens: Tensor = torch.tensor([self.initial_tokens]).repeat(n_audio, 1)
+        tokens: Tensor = Tensor([self.initial_tokens]).repeat(n_audio, 1)
 
         # detect language if requested, overwriting the language token
         languages, language_probs = self._detect_language(audio_features, tokens)
@@ -789,7 +791,7 @@ class DecodingTask:
         ]
 
 
-@torch.no_grad()
+
 def decode(
     model: "Whisper",
     mel: Tensor,
@@ -804,7 +806,7 @@ def decode(
     model: Whisper
         the Whisper model instance
 
-    mel: torch.Tensor, shape = (80, 3000) or (*, 80, 3000)
+    mel: Tensor, shape = (80, 3000) or (*, 80, 3000)
         A tensor containing the Mel spectrogram(s)
 
     options: DecodingOptions

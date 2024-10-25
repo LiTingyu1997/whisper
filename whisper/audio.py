@@ -6,6 +6,7 @@ from typing import Optional, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+from mindspore import Tensor, Parameter
 
 from .utils import exact_div
 
@@ -89,7 +90,7 @@ def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):
 
 
 @lru_cache(maxsize=None)
-def mel_filters(device, n_mels: int) -> torch.Tensor:
+def mel_filters(device, n_mels: int) -> Tensor:
     """
     load the mel filterbank matrix for projecting STFT into a Mel spectrogram.
     Allows decoupling librosa dependency; saved using:
@@ -108,7 +109,7 @@ def mel_filters(device, n_mels: int) -> torch.Tensor:
 
 
 def log_mel_spectrogram(
-    audio: Union[str, np.ndarray, torch.Tensor],
+    audio: Union[str, np.ndarray, Tensor],
     n_mels: int = 80,
     padding: int = 0,
     device: Optional[Union[str, torch.device]] = None,
@@ -118,7 +119,7 @@ def log_mel_spectrogram(
 
     Parameters
     ----------
-    audio: Union[str, np.ndarray, torch.Tensor], shape = (*)
+    audio: Union[str, np.ndarray, Tensor], shape = (*)
         The path to audio or either a NumPy array or Tensor containing the audio waveform in 16 kHz
 
     n_mels: int
@@ -132,7 +133,7 @@ def log_mel_spectrogram(
 
     Returns
     -------
-    torch.Tensor, shape = (80, n_frames)
+    Tensor, shape = (80, n_frames)
         A Tensor that contains the Mel spectrogram
     """
     if not torch.is_tensor(audio):

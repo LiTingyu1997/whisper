@@ -1,7 +1,8 @@
 from functools import lru_cache
 
 import numpy as np
-import torch
+#import torch
+from mindspore import Tensor, ops
 
 try:
     import triton
@@ -95,13 +96,13 @@ def median_kernel(filter_width: int):
     return kernel
 
 
-def median_filter_cuda(x: torch.Tensor, filter_width: int):
+def median_filter_cuda(x: Tensor, filter_width: int):
     """Apply a median filter of given width along the last dimension of x"""
     slices = x.contiguous().unfold(-1, filter_width, 1)
     grid = np.prod(slices.shape[:-2])
 
     kernel = median_kernel(filter_width)
-    y = torch.empty_like(slices[..., 0])
+    y = ops.empty_like(slices[..., 0])
 
     BLOCK_SIZE = 1 << (y.stride(-2) - 1).bit_length()
     kernel[(grid,)](y, x, x.stride(-2), y.stride(-2), BLOCK_SIZE=BLOCK_SIZE)
